@@ -1,0 +1,31 @@
+#Add IAM profile for all AWS EC2 instances, skip those ones have already other profiles.
+
+import boto3
+ 
+iam_client = boto3.client('iam')
+ec2_client = boto3.client('ec2')
+
+AWS_REGION = "us-west-1"
+client = boto3.client('ec2', region_name=AWS_REGION)
+
+def get_instance_profile(instance_profile_name):
+    response = iam_client.get_instance_profile(
+        InstanceProfileName=instance_profile_name
+    )
+    return response['InstanceProfile']
+
+instance_profile = get_instance_profile('C4C_AWS_RT')
+
+def lambda_handler(event, context):
+    response = client.describe_instances()
+    for i in response["Reservations"]:
+        for j in (i["Instances"]):
+            if "IamInstanceProfile" not in j:
+                 response = ec2_client.associate_iam_instance_profile(
+                    IamInstanceProfile={
+                    'Arn': instance_profile['Arn'],
+                    'Name': instance_profile['InstanceProfileName']
+                    },
+           
+                    InstanceId=j["InstanceId"]
+                 )
