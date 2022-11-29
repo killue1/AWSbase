@@ -1,0 +1,91 @@
+#!/usr/bin/python3.6
+import urllib3
+import json
+import os
+import boto3
+
+http = urllib3.PoolManager()
+
+def lambda_handler(event, context):
+    SLACK_HOOK = os.environ['SLACK_HOOK']
+    sns_msg = json.loads(event['Records'][0]['Sns']['Message'])
+    
+    ec2 = boto3.resource('ec2')
+    ec2instance = ec2.Instance(sns_msg['detail']['instance-id'])
+    instancename = ''
+    for tags in ec2instance.tags:
+        if tags["Key"] == 'Name':
+            instancename = tags["Value"]
+        if tags["Key"] == 'comment':
+            instance_comments = tags["Value"]
+     
+ 
+    slack_msg={
+        "channel": "#aws_c4c_check_health_status",
+        #"as_user": false,
+        "icon_url": "https://img.icons8.com/emoji/96/000000/penguin--v2.png",
+        
+      #  "username": "AWS_C4C",
+      #  "icon-emoji": ":aws:",
+        
+    	"blocks": [
+			{
+				"type": "section",
+				"text": {
+					"type": "mrkdwn",
+					"text": "<https://123456789.signin.aws.amazon.com/console | :aws: AWS CloudWatch Notification >"
+				}
+			},
+			{
+				"type": "section",
+				"fields": [
+					{
+						"type": "mrkdwn",
+						"text": "*Region:*\n>Frankfurt " + sns_msg['region'] 
+					},
+					{
+						"type": "mrkdwn",
+						"text": "*Status:*\n>" + sns_msg['detail']['state']          
+					},
+					{
+						"type": "mrkdwn",
+						"text": "*When:*\n>" + sns_msg['time']
+					},
+					{
+						"type": "mrkdwn",
+						"text": "*Instance id:*\n>" + sns_msg['detail']['instance-id']
+					},
+					{
+						"type": "mrkdwn",
+						"text": "*Instance name:*\n>" + instancename
+					},	
+					{
+						"type": "mrkdwn",
+						"text": "*Comments:*\n>" + instance_comments
+					},
+					{
+						"type": "mrkdwn",
+						"text": "*Console:*\n><https://123456789.signin.aws.amazon.com/console | AWS Console Portal>"
+					},
+					{
+						"type": "mrkdwn",
+						"text": "*Type:*\n>" + sns_msg['detail-type']
+					}
+				]
+			},
+			{
+				"type": "divider"
+			}
+		]
+    }
+    
+    
+    encoded_msg = json.dumps(slack_msg).encode('utf-8')
+    resp = http.request('POST',SLACK_HOOK, body=encoded_msg)
+    
+  
+    print({
+        "message": event['Records'][0]['Sns']['Message'], 
+        "status_code": resp.status, 
+        "response": resp.data
+    })
